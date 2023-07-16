@@ -1,0 +1,15 @@
+﻿<Window x:Class="TwitchBot.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:TwitchBot"
+        mc:Ignorable="d"
+        Title="TwitchBot by Pindrought Based off Twitchbot by Cakez77" Height="450" Width="800" Closing="Window_Closing" KeyUp="Window_KeyUp">
+    <Grid>
+        <Button Content="Test" HorizontalAlignment="Left" Margin="35,76,0,0" VerticalAlignment="Top" Click="Button_Click" Height="38" Width="178"/>
+        <TextBox x:Name="TextBox_TextToSpeech" HorizontalAlignment="Left" Margin="35,39,0,0" TextWrapping="Wrap" Text="ENTER TEXT HERE" VerticalAlignment="Top" Width="452"/>
+        <ComboBox x:Name="ComboBox_Voice" HorizontalAlignment="Left" Margin="218,76,0,0" VerticalAlignment="Top" Width="120"/>
+
+    </Grid>
+</Window>
