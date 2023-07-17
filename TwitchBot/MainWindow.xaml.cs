@@ -17,6 +17,8 @@ using System.Windows.Shapes;
 using System.Web;
 using System.IO;
 using static System.Net.Mime.MediaTypeNames;
+using System.Collections.ObjectModel;
+using NAudio.CoreAudioApi;
 
 namespace TwitchBot
 {
@@ -27,7 +29,7 @@ namespace TwitchBot
     {
         TextToSpeechManager textToSpeechManager = new TextToSpeechManager();
         TwitchMessageManager twitchMessageManager = new TwitchMessageManager();
-
+        ObservableCollection<DataGridModel> dataGridCollection = new ObservableCollection<DataGridModel>();
         private Dictionary<string, string> userToVoiceDictionaryLookup = new Dictionary<string, string>();
         Random rng = new Random();
 
@@ -43,12 +45,14 @@ namespace TwitchBot
             {
                 ComboBox_Voice.SelectedIndex = 0;
             }
+
+            dataGridCollection.Add(new DataGridModel() { UserId = "test", Voice = "voice" });
+            DataGrid_UsersAndVoices.ItemsSource = dataGridCollection;
         }
 
-        private void AddMessageToBeProcessed(string user,string msg)
+        private string AssignOrGetVoiceForUser(string user)
         {
-
-            string voice = "";
+            string voice;
             if (userToVoiceDictionaryLookup.TryGetValue(user, out voice)) //Key exists in dictionary
             {
 
@@ -59,8 +63,26 @@ namespace TwitchBot
                 string selectedVoice = ComboBox_Voice.Items[index].ToString();
                 userToVoiceDictionaryLookup.Add(user, selectedVoice);
                 voice = selectedVoice;
+                var dataGridEntry = dataGridCollection.FirstOrDefault(x => x.UserId == user);
+                if (dataGridEntry == null)
+                {
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        dataGridCollection.Add(new DataGridModel()
+                        {
+                            UserId = user,
+                            Voice = voice,
+                        });
+                        DataGrid_UsersAndVoices.Items.Refresh();
+                    }));
+                }
             }
+            return voice;
+        }
 
+        private void AddMessageToBeProcessed(string user,string msg)
+        {
+            string voice = AssignOrGetVoiceForUser(user);
             textToSpeechManager.AddTextRequest(msg, voice);
         }
 
@@ -83,6 +105,44 @@ namespace TwitchBot
                 var text = TextBox_TextToSpeech.Text;
                 textToSpeechManager.AddTextRequest(text, ComboBox_Voice.SelectedItem.ToString());
             }
+        }
+
+        private void Button_RemoveVoice_Click(object sender, RoutedEventArgs e)
+        {
+            var rowModel = (sender as Button).DataContext as DataGridModel;
+            if (rowModel == null)
+                return;
+
+            var result = MessageBox.Show("Are you sure you want to permanently remove this voice?", "Voice Removal Confirmation", MessageBoxButton.YesNoCancel);
+            if (result != MessageBoxResult.Yes) 
+            {
+                return;
+            }
+
+            textToSpeechManager.RemoveVoice(rowModel.Voice);
+
+            foreach(var row in dataGridCollection)
+            {
+                if (row.Voice == rowModel.Voice)
+                {
+                    userToVoiceDictionaryLookup.Remove(row.UserId);
+                    row.Voice = AssignOrGetVoiceForUser(row.UserId);
+                }
+            }
+
+            DataGrid_UsersAndVoices.Items.Refresh();
+        }
+
+        private void Button_NewVoice_Click(object sender, RoutedEventArgs e)
+        {
+            var rowModel = (sender as Button).DataContext as DataGridModel;
+            if (rowModel == null)
+                return;
+
+            userToVoiceDictionaryLookup.Remove(rowModel.UserId);
+            rowModel.Voice = AssignOrGetVoiceForUser(rowModel.UserId);
+
+            DataGrid_UsersAndVoices.Items.Refresh();
         }
     }
 }

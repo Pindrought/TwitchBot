@@ -5,11 +5,31 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TwitchBot"
         mc:Ignorable="d"
-        Title="TwitchBot by Pindrought Based off Twitchbot by Cakez77" Height="450" Width="800" Closing="Window_Closing" KeyUp="Window_KeyUp">
+        Title="TwitchBot by Pindrought Based off Twitchbot by Cakez77" Height="403" Width="626" Closing="Window_Closing" KeyUp="Window_KeyUp">
     <Grid>
-        <Button Content="Test" HorizontalAlignment="Left" Margin="35,76,0,0" VerticalAlignment="Top" Click="Button_Click" Height="38" Width="178"/>
-        <TextBox x:Name="TextBox_TextToSpeech" HorizontalAlignment="Left" Margin="35,39,0,0" TextWrapping="Wrap" Text="ENTER TEXT HERE" VerticalAlignment="Top" Width="452"/>
-        <ComboBox x:Name="ComboBox_Voice" HorizontalAlignment="Left" Margin="218,76,0,0" VerticalAlignment="Top" Width="120"/>
+        <Button Content="Play Above Text in Selected Voice" HorizontalAlignment="Left" Margin="22,33,0,0" VerticalAlignment="Top" Click="Button_Click" Height="38" Width="396"/>
+        <TextBox x:Name="TextBox_TextToSpeech" HorizontalAlignment="Center" Margin="0,10,0,0" TextWrapping="Wrap" Text="ENTER TEXT HERE" VerticalAlignment="Top" Width="584"/>
+        <ComboBox x:Name="ComboBox_Voice" HorizontalAlignment="Left" Margin="423,33,0,0" VerticalAlignment="Top" Width="182" Height="38"/>
+        <DataGrid x:Name="DataGrid_UsersAndVoices" Margin="22,76,20,21" CanUserAddRows="False" AutoGenerateColumns="False">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="User ID" Binding="{Binding UserId}" MinWidth="150"/>
+                <DataGridTextColumn Header="Voice" Binding="{Binding Voice}" MinWidth="150"/>
+                <DataGridTemplateColumn>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button x:Name="Button_NewVoice" Click="Button_NewVoice_Click">New Voice</Button>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn>
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Button x:Name="Button_RemoveVoice" Click="Button_RemoveVoice_Click">Remove Voice</Button>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+        </DataGrid>
 
     </Grid>
 </Window>
