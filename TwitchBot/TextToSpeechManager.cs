@@ -22,18 +22,20 @@ using System.Xml.Schema;
 using TwitchLib.Api.Core.Enums;
 using TwitchLib.Api.Helix;
 using TwitchLib.Communication.Interfaces;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace TwitchBot
 {
     internal class TextToSpeechManager
     {
         private readonly object _queuedSoundsMemoryLock = new object();
-        private Queue<MemoryStream> _queuedSounds = new Queue<MemoryStream>();
+        private Queue<List<MemoryStream>> _queuedSounds = new Queue<List<MemoryStream>>();
         private HttpClient _httpClient = new HttpClient();
         private Thread _soundPlayingThread;
         private volatile bool _shutdownInitiated = false;
         private Dictionary<string, string> _voices_streamelements = new Dictionary<string, string>();
         private Dictionary<string, string> _voices_tiktok = new Dictionary<string, string>();
+        private Dictionary<string, MemoryStream> _soundEffects = new Dictionary<string, MemoryStream>();
         ThreadSafeBool _skipCurrentSound = new ThreadSafeBool();
 
         public TextToSpeechManager()
@@ -70,6 +72,19 @@ namespace TwitchBot
                 }
             }
 
+            var soundFiles = Directory.GetFiles("sounds");
+            foreach(var fullFile in soundFiles)
+            {
+                var fileNameShort = fullFile.ToLower().Substring(fullFile.LastIndexOf('\\') + 1);
+                if (fileNameShort.EndsWith(".mp3"))
+                {
+                    fileNameShort = fileNameShort.Substring(0, fileNameShort.Length - 4); //remove the .mp3
+                    byte[] bytes = File.ReadAllBytes(fullFile);
+                    MemoryStream ms = new MemoryStream(bytes);
+                    _soundEffects.Add("-" + fileNameShort, ms);
+                }
+            }
+
             _soundPlayingThread = new Thread(() =>
             {
                 while(true)
@@ -85,30 +100,35 @@ namespace TwitchBot
                         {
                             if (_queuedSounds.Count > 0)
                             {
-                                MemoryStream soundStream = _queuedSounds.Dequeue();
+                                List<MemoryStream> soundStreamList = _queuedSounds.Dequeue();
                                 Monitor.Exit(_queuedSoundsMemoryLock);
 
-
-                                using (var reader = new NAudio.Wave.Mp3FileReader(soundStream))
+                                if (_skipCurrentSound.Value == true)
                                 {
-                                    using (var waveOut = new WaveOut())
+                                    _skipCurrentSound.Value = false;
+                                }
+
+                                for (int i = 0; i < soundStreamList.Count; i++)
+                                { 
+                                    var soundStream = soundStreamList[i];
+                                    soundStream.Position = 0;
+                                    using (var reader = new NAudio.Wave.Mp3FileReader(soundStream))
                                     {
-                                        waveOut.Init(reader);
-                                        waveOut.Volume = 1.0f;
-                                        waveOut.Play();
-
-                                        if (_skipCurrentSound.Value == true)
+                                        using (var waveOut = new WaveOut())
                                         {
-                                            _skipCurrentSound.Value = false;
-                                        }
+                                            waveOut.Init(reader);
+                                            waveOut.Volume = 1.0f;
+                                            waveOut.Play();
 
-                                        while (waveOut.PlaybackState == PlaybackState.Playing)
-                                        {
-                                            Thread.Sleep(10);
-                                            if (_skipCurrentSound.Value == true)
+                                            while (waveOut.PlaybackState == PlaybackState.Playing)
                                             {
-                                                _skipCurrentSound.Value = false;
-                                                waveOut.Stop();
+                                                Thread.Sleep(10);
+                                                if (_skipCurrentSound.Value == true)
+                                                {
+                                                    _skipCurrentSound.Value = false;
+                                                    waveOut.Stop();
+                                                    soundStreamList.Clear();
+                                                }
                                             }
                                         }
                                     }
@@ -190,36 +210,77 @@ namespace TwitchBot
 
         public async void AddTextRequest(string txt, string voice)
         {
+            var words = txt.Split(' ');
+            List<string> sections = new List<string>();
+            string currentSection = "";
+            foreach (var word in words)
+            {
+                
+                if (_soundEffects.ContainsKey(word))
+                {
+                    if (currentSection != "")
+                    {
+                        sections.Add(currentSection);
+                        currentSection = "";
+                    }
+                    sections.Add(word);
+                }
+                else
+                {
+                    if (currentSection == "")
+                    {
+                        currentSection = word;
+                    }
+                    else
+                    {
+                        currentSection += " " + word;
+                    }
+                }
+            }
+            if (currentSection != "")
+            {
+                sections.Add(currentSection);
+            }
+
+            List<MemoryStream> soundStreamList = new List<MemoryStream>();
+
+
             if (_voices_tiktok.ContainsKey(voice))
             {
                 //TikTok api impl
                 {
                     voice = _voices_tiktok.First(k => k.Key == voice).Value;
-                    var text = txt;
-
-                    var voiceText = new { voice = voice, text = text };
-
-                    HttpContent content = new StringContent(JsonConvert.SerializeObject(voiceText));
-                    content.Headers.Remove("Content-Type");
-                    content.Headers.Add("Content-Type", MediaTypeNames.Application.Json);
-
-                    var json = await _httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
-                                                          content);
-
-                    if (json.StatusCode != System.Net.HttpStatusCode.OK)
+                    foreach (var sec in sections)
                     {
-                        return;
+                        if (_soundEffects.ContainsKey(sec))
+                        {
+                            soundStreamList.Add(_soundEffects[sec]);
+                        }
+                        else
+                        {
+                            var voiceText = new { voice = voice, text = sec };
+
+                            HttpContent content = new StringContent(JsonConvert.SerializeObject(voiceText));
+                            content.Headers.Remove("Content-Type");
+                            content.Headers.Add("Content-Type", MediaTypeNames.Application.Json);
+
+                            var json = await _httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
+                                                                  content);
+
+                            if (json.StatusCode != System.Net.HttpStatusCode.OK)
+                            {
+                                return;
+                            }
+
+                            var response = await json.Content.ReadAsStringAsync();
+                            var deserializedResponse = JsonConvert.DeserializeObject<JObject>(response);
+
+                            var binaryData = Convert.FromBase64String(deserializedResponse["data"].ToString());
+
+                            MemoryStream soundStream = new MemoryStream(binaryData);
+                            soundStreamList.Add(soundStream);
+                        }
                     }
-
-                    var response = await json.Content.ReadAsStringAsync();
-                    var deserializedResponse = JsonConvert.DeserializeObject<JObject>(response);
-
-                    var binaryData = Convert.FromBase64String(deserializedResponse["data"].ToString());
-
-                    MemoryStream soundStream = new MemoryStream(binaryData);
-                    Monitor.Enter(_queuedSoundsMemoryLock);
-                    _queuedSounds.Enqueue(soundStream);
-                    Monitor.Exit(_queuedSoundsMemoryLock);
                 }
             }
             //StreamElements impl
@@ -227,23 +288,34 @@ namespace TwitchBot
             {
                 voice = _voices_streamelements.First(k => k.Key == voice).Value;
 
-                var text = Uri.EscapeDataString(txt);
-
-                var json = await _httpClient.GetAsync($"https://api.streamelements.com/kappa/v2/speech?voice={voice}&text={text}");
-
-                if (json.StatusCode != System.Net.HttpStatusCode.OK)
+                foreach(var sec in sections)
                 {
-                    MessageBox.Show("Bad Status Code? Voice = " + voice + "\n" + json.StatusCode.ToString() + "\nRequest: " + json.ToString());
-                    return;
+                    if (_soundEffects.ContainsKey(sec))
+                    {
+                        soundStreamList.Add(_soundEffects[sec]);
+                    }
+                    else
+                    {
+                        var text = Uri.EscapeDataString(txt);
+
+                        var json = await _httpClient.GetAsync($"https://api.streamelements.com/kappa/v2/speech?voice={voice}&text={text}");
+
+                        if (json.StatusCode != System.Net.HttpStatusCode.OK)
+                        {
+                            MessageBox.Show("Bad Status Code? Voice = " + voice + "\n" + json.StatusCode.ToString() + "\nRequest: " + json.ToString());
+                            return;
+                        }
+
+                        var data = await json.Content.ReadAsByteArrayAsync();
+                        MemoryStream soundStream = new MemoryStream(data);
+                        soundStreamList.Add(soundStream);
+                    }
                 }
-
-                var data = await json.Content.ReadAsByteArrayAsync();
-                MemoryStream soundStream = new MemoryStream(data.ToArray());
-                Monitor.Enter(_queuedSoundsMemoryLock);
-                _queuedSounds.Enqueue(soundStream);
-                Monitor.Exit(_queuedSoundsMemoryLock);
             }
-        }
 
+            Monitor.Enter(_queuedSoundsMemoryLock);
+            _queuedSounds.Enqueue(soundStreamList);
+            Monitor.Exit(_queuedSoundsMemoryLock);
+        }
     }
 }
