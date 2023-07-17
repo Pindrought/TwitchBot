@@ -21,13 +21,14 @@ namespace TwitchBot
     {
         private TwitchClient _client;
         private TextToSpeechManager _textToSpeechManager;
+        Stopwatch? _timeSinceLastVoiceURLSent = null;
+        const double _minDurationBetweenVoiceURLNotification = 5000; //5000 Miliseconds = 5 seconds
 
         public delegate void OnMessageReceivedCallbackHandler(string user, string msg);
         public event OnMessageReceivedCallbackHandler OnMessageReceivedCallback;
 
         public delegate void OnVoiceChangedCallbackHandler(string user, string voice);
         public event OnVoiceChangedCallbackHandler OnVoiceChangedCallback;
-        Stopwatch _timeSinceLastVoiceURLSent = null;
 
         public TwitchMessageManager(TextToSpeechManager textToSpeechManager)
         {
@@ -48,9 +49,11 @@ namespace TwitchBot
             _client = new TwitchClient(customClient);
             _client.Initialize(credentials, TwitchCredentialManager.ChannelName);
 
-            _client.OnMessageReceived += OnMessageReceived;
-            _client.OnNewSubscriber += OnNewSubscriber;
+            _client.AddChatCommandIdentifier('!');
             _client.OnConnected += OnConnected;
+            _client.OnNewSubscriber += OnNewSubscriber;
+            _client.OnMessageReceived += OnMessageReceived;
+            _client.OnChatCommandReceived += OnChatCommandReceived;
 
             if (!_client.Connect())
             {
@@ -58,81 +61,93 @@ namespace TwitchBot
             }
         }
 
-        private void OnConnected(object sender, OnConnectedArgs e)
+        private void OnConnected(object? sender, OnConnectedArgs e)
         {
-            Console.WriteLine($"Connected to {e.AutoJoinChannel}");
         }
 
-
-        private void OnNewSubscriber(object sender, OnNewSubscriberArgs e)
+        private void OnNewSubscriber(object? sender, OnNewSubscriberArgs e)
         {
-
         }
 
-
-        private void OnMessageReceived(object sender, OnMessageReceivedArgs e)
+        private void OnMessageReceived(object? sender, OnMessageReceivedArgs e)
         {
             string user = e.ChatMessage.DisplayName;
             var msg = e.ChatMessage.Message;
-            if (msg.ToLower().StartsWith("!voice"))
-            {
-                if (msg.Length > 7)
-                {
-                    msg = msg.ToLower();
-                    string voice = msg.Substring(6).Trim();
-                    if (_textToSpeechManager.IsVoiceValid(voice))
-                    {
-                        if (OnVoiceChangedCallback != null)
-                        {
-                            OnVoiceChangedCallback(user, voice);
-                        }
-                    }
-                    else
-                    {
-                        if (_timeSinceLastVoiceURLSent == null)
-                        {
-                            _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{e.ChatMessage.DisplayName} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
-                            _timeSinceLastVoiceURLSent = new Stopwatch();
-                            _timeSinceLastVoiceURLSent.Start();
-                        }
-                        else
-                        {
-                            if (_timeSinceLastVoiceURLSent.ElapsedMilliseconds > 5000)
-                            {
-                                _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{e.ChatMessage.DisplayName} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
-                                _timeSinceLastVoiceURLSent.Restart();
-                            }
-                        }
-
-                        //Whispers aren't working i'm not sure why and don't care enough to fix it at the moment.
-                        //_client.SendWhisper(e.ChatMessage.Username, "Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
-                    }
-                }
-                else //Improper usage
-                {
-                    if (_timeSinceLastVoiceURLSent == null)
-                    {
-                        _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{e.ChatMessage.DisplayName} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
-                        _timeSinceLastVoiceURLSent = new Stopwatch();
-                        _timeSinceLastVoiceURLSent.Start();
-                    }
-                    else
-                    {
-                        if (_timeSinceLastVoiceURLSent.ElapsedMilliseconds > 5000)
-                        {
-                            _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{e.ChatMessage.DisplayName} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
-                            _timeSinceLastVoiceURLSent.Restart();
-                        }
-                    }
-                }
-            }
-            else
-            {
+            if (msg.StartsWith("!") == false) //Make sure we are ignoring commands
+            {                
                 string cleanedText = Regex.Replace(msg, @"http[^\s]+", ""); //no url aids spam
                 if (OnMessageReceivedCallback != null)
                 {
                     OnMessageReceivedCallback(user, cleanedText);
                 }
+            }
+        }
+
+        private void OnChatCommandReceived(object? sender, OnChatCommandReceivedArgs e)
+        {
+            var args = e.Command.ArgumentsAsList;
+            var user = e.Command.ChatMessage.DisplayName;
+            var cmd = e.Command.CommandText.ToLower();
+            var msg = e.Command.ChatMessage.Message;
+
+            switch (cmd)
+            {
+                case "voice":
+                    {
+                        if (args.Count > 0)
+                        {
+                            var fullVoiceText = args[0].ToLower();
+                            for(int i=1; i<args.Count; i++)
+                            {
+                                fullVoiceText += " " + args[i].ToLower();
+                            }
+
+                            if (_textToSpeechManager.IsVoiceValid(fullVoiceText))
+                            {
+                                if (OnVoiceChangedCallback != null)
+                                {
+                                    OnVoiceChangedCallback(user, fullVoiceText);
+                                }
+                            }
+                            else
+                            {
+                                //Whispers aren't working i'm not sure why and don't care enough to fix it, so i'll just send chat messages to everyone for now.
+                                //_client.SendWhisper(e.ChatMessage.Username, "Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                if (_timeSinceLastVoiceURLSent == null) //If first time sending the notification about how to use !voice
+                                {
+                                    _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                    _timeSinceLastVoiceURLSent = new Stopwatch();
+                                    _timeSinceLastVoiceURLSent.Start();
+                                }
+                                else
+                                {
+                                    if (_timeSinceLastVoiceURLSent.ElapsedMilliseconds > _minDurationBetweenVoiceURLNotification)
+                                    {
+                                        _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                        _timeSinceLastVoiceURLSent.Restart();
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (_timeSinceLastVoiceURLSent == null)
+                            {
+                                _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                _timeSinceLastVoiceURLSent = new Stopwatch();
+                                _timeSinceLastVoiceURLSent.Start();
+                            }
+                            else
+                            {
+                                if (_timeSinceLastVoiceURLSent.ElapsedMilliseconds > _minDurationBetweenVoiceURLNotification)
+                                {
+                                    _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                    _timeSinceLastVoiceURLSent.Restart();
+                                }
+                            }
+                        }
+                        break;
+                    }
             }
         }
     }

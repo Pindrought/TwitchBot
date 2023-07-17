@@ -183,10 +183,9 @@ namespace TwitchBot
 
         public void Shutdown()
         {
-            lock (_queuedSoundsMemoryLock)
-            {
-                _shutdownInitiated = true;
-            }
+            Monitor.Enter(_queuedSoundsMemoryLock);
+            _shutdownInitiated = true;
+            Monitor.Exit(_queuedSoundsMemoryLock);
         }
 
         public async void AddTextRequest(string txt, string voice)

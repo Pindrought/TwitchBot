@@ -30,7 +30,7 @@ namespace TwitchBot
             }
             using (StreamReader sr = new StreamReader("config.ini"))
             {
-                string line = sr.ReadLine();
+                string? line = sr.ReadLine();
                 while(line != null)
                 {
                     int equalsIndex = line.IndexOf('=');
