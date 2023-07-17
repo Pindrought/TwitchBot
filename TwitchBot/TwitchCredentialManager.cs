@@ -13,8 +13,21 @@ namespace TwitchBot
     {
         public static string UserId = "";
         public static string AuthToken = "";
+        public static string ChannelName = "";
         public static bool Initialize()
         {
+            if (File.Exists("config.ini") == false)
+            {
+                using(StreamWriter sw = new StreamWriter("config.ini"))
+                {
+                    sw.WriteLine("TwitchUserId=PUTYOURTWITCHNAMEHERE");
+                    sw.WriteLine("TwitchAccessToken=PUTYOURACCESSTOKENHERE");
+                    sw.WriteLine("ChannelName=PUTYOURCHANNELHERE");
+                    sw.WriteLine("NOTE: YOUR TWITCH USER ID AND CHANNEL NAME WILL USUALLY BE THE SAME UNLESS YOU WANT A DEDICATED BOT USER");
+                }
+                MessageBox.Show("Please set up your config.ini file!");
+                Environment.Exit(1);
+            }
             using (StreamReader sr = new StreamReader("config.ini"))
             {
                 string line = sr.ReadLine();
@@ -33,11 +46,19 @@ namespace TwitchBot
                         {
                             AuthToken = value;
                         }
+                        if (key == "ChannelName")
+                        {
+                            ChannelName = value;
+                            if (ChannelName.Contains("#") == false)
+                            {
+                                ChannelName = $"#{ChannelName}";
+                            }
+                        }
                     }
                     line = sr.ReadLine();
                 }
             }
-            if (UserId == "" || AuthToken == "")
+            if (UserId == "" || AuthToken == "" || ChannelName == "")
             {
                 MessageBox.Show("Failed to load config.ini to pull twitch credentials for connecting to chat.");
                 return false;

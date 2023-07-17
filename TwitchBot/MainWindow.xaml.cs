@@ -27,48 +27,85 @@ namespace TwitchBot
     /// </summary>
     public partial class MainWindow : Window
     {
-        TextToSpeechManager textToSpeechManager = new TextToSpeechManager();
-        TwitchMessageManager twitchMessageManager = new TwitchMessageManager();
-        ObservableCollection<DataGridModel> dataGridCollection = new ObservableCollection<DataGridModel>();
-        private Dictionary<string, string> userToVoiceDictionaryLookup = new Dictionary<string, string>();
-        Random rng = new Random();
+        TextToSpeechManager _textToSpeechManager = new TextToSpeechManager();
+        TwitchMessageManager _twitchMessageManager = null;
+        ObservableCollection<DataGridModel> _dataGridCollection = new ObservableCollection<DataGridModel>();
+        private Dictionary<string, string> _userToVoiceDictionaryLookup = new Dictionary<string, string>();
+        Random _rng = new Random();
+        List<string> _mutedUsers = new List<string>();
 
         public MainWindow()
         {
             InitializeComponent();
-            twitchMessageManager.OnMessageReceivedCallback += AddMessageToBeProcessed;
-            foreach(var voice in textToSpeechManager.GetVoices())
+            _twitchMessageManager = new TwitchMessageManager(_textToSpeechManager);
+            _twitchMessageManager.OnMessageReceivedCallback += AddMessageToBeProcessed;
+            _twitchMessageManager.OnVoiceChangedCallback += AssignVoice;
+
+            foreach(var voice in _textToSpeechManager.GetVoices())
             {
-                ComboBox_Voice.Items.Add(voice);
+                ComboBox_Voice.Items.Add(voice.Key);
             }
             if (ComboBox_Voice.Items.Count > 0) 
             {
                 ComboBox_Voice.SelectedIndex = 0;
             }
 
-            dataGridCollection.Add(new DataGridModel() { UserId = "test", Voice = "voice" });
-            DataGrid_UsersAndVoices.ItemsSource = dataGridCollection;
+            DataGrid_UsersAndVoices.ItemsSource = _dataGridCollection;
         }
 
-        private string AssignOrGetVoiceForUser(string user)
+        private string AssignOrGetVoiceForUser(string user, string? assignedVoice)
         {
+            if (assignedVoice != null) 
+            {
+                if (_userToVoiceDictionaryLookup.ContainsKey(user))
+                {
+                    _userToVoiceDictionaryLookup[user] = assignedVoice;
+                }
+                else
+                {
+                    _userToVoiceDictionaryLookup.Add(user, assignedVoice);
+                }
+                var dataGridEntry = _dataGridCollection.FirstOrDefault(x => x.UserId == user);
+                if (dataGridEntry == null)
+                {
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        _dataGridCollection.Add(new DataGridModel()
+                        {
+                            UserId = user,
+                            Voice = assignedVoice,
+                        });
+                        DataGrid_UsersAndVoices.Items.Refresh();
+                    }));
+                }
+                else
+                {
+                    Dispatcher.Invoke(new Action(() =>
+                    {
+                        dataGridEntry.Voice = assignedVoice;
+                        DataGrid_UsersAndVoices.Items.Refresh();
+                    }));
+                }
+                return assignedVoice;
+            }
+
             string voice;
-            if (userToVoiceDictionaryLookup.TryGetValue(user, out voice)) //Key exists in dictionary
+            if (_userToVoiceDictionaryLookup.TryGetValue(user, out voice)) //Key exists in dictionary
             {
 
             }
             else //need to add key to dictionary
             {
-                int index = rng.Next(0, ComboBox_Voice.Items.Count);
+                int index = _rng.Next(0, ComboBox_Voice.Items.Count);
                 string selectedVoice = ComboBox_Voice.Items[index].ToString();
-                userToVoiceDictionaryLookup.Add(user, selectedVoice);
+                _userToVoiceDictionaryLookup.Add(user, selectedVoice);
                 voice = selectedVoice;
-                var dataGridEntry = dataGridCollection.FirstOrDefault(x => x.UserId == user);
+                var dataGridEntry = _dataGridCollection.FirstOrDefault(x => x.UserId == user);
                 if (dataGridEntry == null)
                 {
                     Dispatcher.Invoke(new Action(() =>
                     {
-                        dataGridCollection.Add(new DataGridModel()
+                        _dataGridCollection.Add(new DataGridModel()
                         {
                             UserId = user,
                             Voice = voice,
@@ -80,31 +117,26 @@ namespace TwitchBot
             return voice;
         }
 
-        private void AddMessageToBeProcessed(string user,string msg)
+        private void AssignVoice(string user, string voice)
         {
-            string voice = AssignOrGetVoiceForUser(user);
-            textToSpeechManager.AddTextRequest(msg, voice);
+            AssignOrGetVoiceForUser(user, voice);
         }
 
-        private async void Button_Click(object sender, RoutedEventArgs e)
+        private void AddMessageToBeProcessed(string user,string msg)
+        {
+            string voice = AssignOrGetVoiceForUser(user, null);
+            _textToSpeechManager.AddTextRequest(msg, voice);
+        }
+
+        private void Button_Click(object sender, RoutedEventArgs e)
         {
             var text = TextBox_TextToSpeech.Text;
-            textToSpeechManager.AddTextRequest(text, ComboBox_Voice.SelectedItem.ToString());
+            _textToSpeechManager.AddTextRequest(text, ComboBox_Voice.SelectedItem.ToString());
         }
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
-            textToSpeechManager.Shutdown();
-        }
-
-        private void Window_KeyUp(object sender, KeyEventArgs e)
-        {
-            if (e.Key == Key.F2)
-            {
-                ComboBox_Voice.SelectedIndex += 1;
-                var text = TextBox_TextToSpeech.Text;
-                textToSpeechManager.AddTextRequest(text, ComboBox_Voice.SelectedItem.ToString());
-            }
+            _textToSpeechManager.Shutdown();
         }
 
         private void Button_RemoveVoice_Click(object sender, RoutedEventArgs e)
@@ -119,14 +151,14 @@ namespace TwitchBot
                 return;
             }
 
-            textToSpeechManager.RemoveVoice(rowModel.Voice);
+            _textToSpeechManager.RemoveVoice(rowModel.Voice);
 
-            foreach(var row in dataGridCollection)
+            foreach(var row in _dataGridCollection)
             {
                 if (row.Voice == rowModel.Voice)
                 {
-                    userToVoiceDictionaryLookup.Remove(row.UserId);
-                    row.Voice = AssignOrGetVoiceForUser(row.UserId);
+                    _userToVoiceDictionaryLookup.Remove(row.UserId);
+                    row.Voice = AssignOrGetVoiceForUser(row.UserId, null);
                 }
             }
 
@@ -139,8 +171,8 @@ namespace TwitchBot
             if (rowModel == null)
                 return;
 
-            userToVoiceDictionaryLookup.Remove(rowModel.UserId);
-            rowModel.Voice = AssignOrGetVoiceForUser(rowModel.UserId);
+            _userToVoiceDictionaryLookup.Remove(rowModel.UserId);
+            rowModel.Voice = AssignOrGetVoiceForUser(rowModel.UserId, null);
 
             DataGrid_UsersAndVoices.Items.Refresh();
         }

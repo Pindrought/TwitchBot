@@ -7,16 +7,20 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Media;
+using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Net.Mime;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Markup;
 using System.Xml.Schema;
+using TwitchLib.Api.Core.Enums;
+using TwitchLib.Api.Helix;
 using TwitchLib.Communication.Interfaces;
 
 namespace TwitchBot
@@ -28,10 +32,12 @@ namespace TwitchBot
         private HttpClient httpClient = new HttpClient();
         private Thread soundPlayingThread;
         private volatile bool shutdownInitiated = false;
-        private List<String> voices = new List<string>();
+        private Dictionary<string, string> voices_streamelements = new Dictionary<string, string>();
+        private Dictionary<string, string> voices_tiktok = new Dictionary<string, string>();
+
         public TextToSpeechManager()
         {
-            using (StreamReader sr = new StreamReader("voices.txt"))
+            using (StreamReader sr = new StreamReader("voices_streamelements.txt"))
             {
                 string line = sr.ReadLine();
                 while (line != null)
@@ -39,22 +45,29 @@ namespace TwitchBot
                     line = line.Trim();
                     if (!line.Equals(""))
                     {
-                        voices.Add(line);
+                        voices_streamelements.Add(line.ToLower(), line);
                     }
                     line = sr.ReadLine();
                 }
             }
-            voices.Sort();
 
-            //Copied/pasted this lol idk what it does will check later might not even need it
-            //httpClient.DefaultRequestHeaders.Accept.Clear();
-            //httpClient.DefaultRequestHeaders.Accept.Add(
-            //    new MediaTypeWithQualityHeaderValue("application/vnd.github.v3+json"));
-            //httpClient.DefaultRequestHeaders.Add("User-Agent", ".NET Foundation Repository Reporter");
-            //httpClient.DefaultRequestHeaders.Add()
-            httpClient.DefaultRequestHeaders.Clear();
-            httpClient.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
-            httpClient.DefaultRequestHeaders.TryAddWithoutValidation("Content-Type", "application/json");
+            using (StreamReader sr = new StreamReader("voices_tiktok.txt"))
+            {
+                string line = sr.ReadLine();
+                while (line != null)
+                {
+                    line = line.Trim();
+                    if (!line.Equals("") && !line.Contains("#"))
+                    {
+                        if (line.Contains("="))
+                        {
+                            string[] secs = line.Split('=');
+                            voices_tiktok.Add(secs[0].ToLower(), secs[1]);
+                        }
+                    }
+                    line = sr.ReadLine();
+                }
+            }
 
             soundPlayingThread = new Thread(() =>
             {
@@ -73,6 +86,7 @@ namespace TwitchBot
                             {
                                 MemoryStream soundStream = queuedSounds.Dequeue();
                                 Monitor.Exit(queuedSoundsMemoryLock);
+
 
                                 using (var reader = new NAudio.Wave.Mp3FileReader(soundStream))
                                 {
@@ -105,21 +119,49 @@ namespace TwitchBot
             soundPlayingThread.Start();
         }
 
-        public List<String> GetVoices()
+        public bool IsVoiceValid(string voice)
         {
-            return voices;
+            if (voices_tiktok.ContainsKey(voice))
+            {
+                return true;
+            }
+            if (voices_streamelements.ContainsKey(voice))
+            {
+                return true;
+            }
+            return false;
+        }
+
+        public Dictionary<string, string> GetVoices()
+        {
+            Dictionary<string, string> allVoices = new Dictionary<string, string>();
+            foreach(var voice in voices_tiktok)
+            {
+                allVoices.Add(voice.Key, voice.Value);
+            }
+            foreach (var voice in voices_streamelements)
+            {
+                allVoices.Add(voice.Key, voice.Value);
+            }
+            //StreamWriter sw = new StreamWriter("allvoices.txt");
+            //foreach(var v in allVoices)
+            //{
+            //    sw.WriteLine(v.Key);
+            //}
+            //sw.Close();
+            return allVoices;
         }
 
         public void RemoveVoice(string voice)
         {
-            voices.Remove(voice);
-            using (StreamWriter sw = new StreamWriter("voices.txt"))
-            {
-                foreach(var v in voices)
-                {
-                    sw.WriteLine(v.ToString());
-                }
-            }
+            //voices_streamelements.Remove(voice);
+            //using (StreamWriter sw = new StreamWriter("voices.txt"))
+            //{
+            //    foreach(var v in voices_streamelements)
+            //    {
+            //        sw.WriteLine(v.ToString());
+            //    }
+            //}
         }
 
         public void Shutdown()
@@ -130,37 +172,48 @@ namespace TwitchBot
             }
         }
 
-        public class VoiceTextObject
-        {
-            public string voice;
-            public string text;
-        }
-
         public async void AddTextRequest(string txt, string voice)
         {
-            var text = Uri.EscapeDataString(txt);
-
-            if (!voices.Contains(voice))
+            if (voices_tiktok.ContainsKey(voice))
             {
-                return;
+                //TikTok api impl
+                {
+                    voice = voices_tiktok.First(k => k.Key == voice).Value;
+                    var text = txt;
+
+                    var voiceText = new { voice = voice, text = text };
+
+                    HttpContent content = new StringContent(JsonConvert.SerializeObject(voiceText));
+                    content.Headers.Remove("Content-Type");
+                    content.Headers.Add("Content-Type", MediaTypeNames.Application.Json);
+
+                    var json = await httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
+                                                          content);
+
+                    if (json.StatusCode != System.Net.HttpStatusCode.OK)
+                    {
+                        return;
+                    }
+
+                    var response = await json.Content.ReadAsStringAsync();
+                    var deserializedResponse = JsonConvert.DeserializeObject<JObject>(response);
+
+                    var binaryData = Convert.FromBase64String(deserializedResponse["data"].ToString());
+
+                    MemoryStream soundStream = new MemoryStream(binaryData);
+                    Monitor.Enter(queuedSoundsMemoryLock);
+                    queuedSounds.Enqueue(soundStream);
+                    Monitor.Exit(queuedSoundsMemoryLock);
+                }
             }
-
-
-            //TikTok api impl
+            //StreamElements impl
+            if (voices_streamelements.ContainsKey(voice))
             {
-                voice = "en_us_chewbacca";
-                //var requestText = $"https://tiktok-tts.weilnet.workers.dev/api/generation&voice={voice}&text={text}";
+                voice = voices_streamelements.First(k => k.Key == voice).Value;
 
-                text = "hello";
+                var text = Uri.EscapeDataString(txt);
 
-                VoiceTextObject vto = new VoiceTextObject();
-                vto.voice = voice;
-                vto.text = text;
-
-                //var serializedJson = JsonConvert.SerializeObject(vto);
-
-                var json = await httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
-                                                      new StringContent(JsonConvert.SerializeObject(vto), Encoding.UTF8, MediaTypeNames.Application.Json));
+                var json = await httpClient.GetAsync($"https://api.streamelements.com/kappa/v2/speech?voice={voice}&text={text}");
 
                 if (json.StatusCode != System.Net.HttpStatusCode.OK)
                 {
@@ -174,27 +227,7 @@ namespace TwitchBot
                 queuedSounds.Enqueue(soundStream);
                 Monitor.Exit(queuedSoundsMemoryLock);
             }
-
-            //StreamElements impl
-            //{
-            //    var json = await httpClient.GetAsync("https://api.streamelements.com/kappa/v2/speech?voice=" + voice + "&text=" + text);
-
-            //    if (json.StatusCode != System.Net.HttpStatusCode.OK)
-            //    {
-            //        MessageBox.Show("Bad Status Code? Voice = " + voice + "\n" + json.StatusCode.ToString() + "\nRequest: " + json.ToString());
-            //        return;
-            //    }
-
-            //    var data = await json.Content.ReadAsByteArrayAsync();
-            //    MemoryStream soundStream = new MemoryStream(data.ToArray());
-            //    Monitor.Enter(queuedSoundsMemoryLock);
-            //    queuedSounds.Enqueue(soundStream);
-            //    Monitor.Exit(queuedSoundsMemoryLock);
-            //}
-
         }
-
-
 
     }
 }

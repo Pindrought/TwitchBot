@@ -10,5 +10,6 @@ namespace TwitchBot
     {
         public string UserId { get; set; }
         public string Voice { get; set; }
+        public bool Muted { get; set; }
     }
 }
