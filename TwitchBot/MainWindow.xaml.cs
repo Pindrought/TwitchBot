@@ -51,6 +51,20 @@ namespace TwitchBot
             }
 
             DataGrid_UsersAndVoices.ItemsSource = _dataGridCollection;
+
+            if (File.Exists("muted.txt"))
+            {
+                using (StreamReader sr = new StreamReader("muted.txt"))
+                {
+                    string line = sr.ReadLine();
+                    while(line != null)
+                    {
+                        if (!line.Equals(""))
+                            _mutedUsers.Add(line);
+                        line = sr.ReadLine();
+                    }
+                }
+            }
         }
 
         private string AssignOrGetVoiceForUser(string user, string? assignedVoice)
@@ -68,13 +82,17 @@ namespace TwitchBot
                 var dataGridEntry = _dataGridCollection.FirstOrDefault(x => x.UserId == user);
                 if (dataGridEntry == null)
                 {
+                    bool muted = _mutedUsers.Contains(user);
+
                     Dispatcher.Invoke(new Action(() =>
                     {
                         _dataGridCollection.Add(new DataGridModel()
                         {
                             UserId = user,
                             Voice = assignedVoice,
+                            Muted = muted
                         });
+                        
                         DataGrid_UsersAndVoices.Items.Refresh();
                     }));
                 }
@@ -103,12 +121,15 @@ namespace TwitchBot
                 var dataGridEntry = _dataGridCollection.FirstOrDefault(x => x.UserId == user);
                 if (dataGridEntry == null)
                 {
+                    bool muted = _mutedUsers.Contains(user);
+
                     Dispatcher.Invoke(new Action(() =>
                     {
                         _dataGridCollection.Add(new DataGridModel()
                         {
                             UserId = user,
                             Voice = voice,
+                            Muted = muted
                         });
                         DataGrid_UsersAndVoices.Items.Refresh();
                     }));
@@ -125,6 +146,10 @@ namespace TwitchBot
         private void AddMessageToBeProcessed(string user,string msg)
         {
             string voice = AssignOrGetVoiceForUser(user, null);
+
+            if (_mutedUsers.Contains(user))
+                return;
+
             _textToSpeechManager.AddTextRequest(msg, voice);
         }
 
@@ -175,6 +200,47 @@ namespace TwitchBot
             rowModel.Voice = AssignOrGetVoiceForUser(rowModel.UserId, null);
 
             DataGrid_UsersAndVoices.Items.Refresh();
+        }
+
+        void OnMuteChecked(object sender, RoutedEventArgs e)
+        {
+            var cb = sender as DataGridCell;
+            var rowModel = cb.DataContext as DataGridModel;
+
+            if (_mutedUsers.Contains(rowModel.UserId) == false)
+            {
+                _mutedUsers.Add(rowModel.UserId);
+                using (StreamWriter sw = new StreamWriter("muted.txt"))
+                {
+                    foreach (var user in _mutedUsers)
+                    {
+                        sw.WriteLine(user);
+                    }
+                }
+            }
+        }
+
+        void OnMuteUnchecked(object sender, RoutedEventArgs e)
+        {
+            var cb = sender as DataGridCell;
+            var rowModel = cb.DataContext as DataGridModel;
+
+            if (_mutedUsers.Contains(rowModel.UserId) == true)
+            {
+                _mutedUsers.Remove(rowModel.UserId);
+                using (StreamWriter sw = new StreamWriter("muted.txt"))
+                {
+                    foreach (var user in _mutedUsers)
+                    {
+                        sw.WriteLine(user);
+                    }
+                }
+            }
+        }
+
+        private void Button_SkipSound(object sender, RoutedEventArgs e)
+        {
+            _textToSpeechManager.SkipCurrentSound();
         }
     }
 }

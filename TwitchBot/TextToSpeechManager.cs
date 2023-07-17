@@ -34,6 +34,7 @@ namespace TwitchBot
         private volatile bool shutdownInitiated = false;
         private Dictionary<string, string> voices_streamelements = new Dictionary<string, string>();
         private Dictionary<string, string> voices_tiktok = new Dictionary<string, string>();
+        ThreadSafeBool _skipCurrentSound = new ThreadSafeBool();
 
         public TextToSpeechManager()
         {
@@ -96,9 +97,19 @@ namespace TwitchBot
                                         waveOut.Volume = 1.0f;
                                         waveOut.Play();
 
+                                        if (_skipCurrentSound.Value == true)
+                                        {
+                                            _skipCurrentSound.Value = false;
+                                        }
+
                                         while (waveOut.PlaybackState == PlaybackState.Playing)
                                         {
                                             Thread.Sleep(10);
+                                            if (_skipCurrentSound.Value == true)
+                                            {
+                                                _skipCurrentSound.Value = false;
+                                                waveOut.Stop();
+                                            }
                                         }
                                     }
                                 }
@@ -117,6 +128,12 @@ namespace TwitchBot
                 }
             });
             soundPlayingThread.Start();
+        }
+
+
+        public void SkipCurrentSound()
+        {
+            _skipCurrentSound.Value = true;
         }
 
         public bool IsVoiceValid(string voice)
