@@ -27,13 +27,13 @@ namespace TwitchBot
 {
     internal class TextToSpeechManager
     {
-        private readonly object queuedSoundsMemoryLock = new object();
-        private Queue<MemoryStream> queuedSounds = new Queue<MemoryStream>();
-        private HttpClient httpClient = new HttpClient();
-        private Thread soundPlayingThread;
-        private volatile bool shutdownInitiated = false;
-        private Dictionary<string, string> voices_streamelements = new Dictionary<string, string>();
-        private Dictionary<string, string> voices_tiktok = new Dictionary<string, string>();
+        private readonly object _queuedSoundsMemoryLock = new object();
+        private Queue<MemoryStream> _queuedSounds = new Queue<MemoryStream>();
+        private HttpClient _httpClient = new HttpClient();
+        private Thread _soundPlayingThread;
+        private volatile bool _shutdownInitiated = false;
+        private Dictionary<string, string> _voices_streamelements = new Dictionary<string, string>();
+        private Dictionary<string, string> _voices_tiktok = new Dictionary<string, string>();
         ThreadSafeBool _skipCurrentSound = new ThreadSafeBool();
 
         public TextToSpeechManager()
@@ -46,7 +46,7 @@ namespace TwitchBot
                     line = line.Trim();
                     if (!line.Equals(""))
                     {
-                        voices_streamelements.Add(line.ToLower(), line);
+                        _voices_streamelements.Add(line.ToLower(), line);
                     }
                     line = sr.ReadLine();
                 }
@@ -63,30 +63,30 @@ namespace TwitchBot
                         if (line.Contains("="))
                         {
                             string[] secs = line.Split('=');
-                            voices_tiktok.Add(secs[0].ToLower(), secs[1]);
+                            _voices_tiktok.Add(secs[0].ToLower(), secs[1]);
                         }
                     }
                     line = sr.ReadLine();
                 }
             }
 
-            soundPlayingThread = new Thread(() =>
+            _soundPlayingThread = new Thread(() =>
             {
                 while(true)
                 {
-                    if (shutdownInitiated == true)
+                    if (_shutdownInitiated == true)
                     {
                         return;
                     }
                     Thread.Sleep(10);
-                    if (Monitor.TryEnter(queuedSoundsMemoryLock))
+                    if (Monitor.TryEnter(_queuedSoundsMemoryLock))
                     {
                         try
                         {
-                            if (queuedSounds.Count > 0)
+                            if (_queuedSounds.Count > 0)
                             {
-                                MemoryStream soundStream = queuedSounds.Dequeue();
-                                Monitor.Exit(queuedSoundsMemoryLock);
+                                MemoryStream soundStream = _queuedSounds.Dequeue();
+                                Monitor.Exit(_queuedSoundsMemoryLock);
 
 
                                 using (var reader = new NAudio.Wave.Mp3FileReader(soundStream))
@@ -116,18 +116,18 @@ namespace TwitchBot
                             }
                             else
                             {
-                                Monitor.Exit(queuedSoundsMemoryLock);
+                                Monitor.Exit(_queuedSoundsMemoryLock);
                             }
                         }
                         catch (Exception ex) 
                         {
                             Console.WriteLine(ex.ToString());
-                            Monitor.Exit(queuedSoundsMemoryLock);
+                            Monitor.Exit(_queuedSoundsMemoryLock);
                         }
                     }
                 }
             });
-            soundPlayingThread.Start();
+            _soundPlayingThread.Start();
         }
 
 
@@ -138,11 +138,11 @@ namespace TwitchBot
 
         public bool IsVoiceValid(string voice)
         {
-            if (voices_tiktok.ContainsKey(voice))
+            if (_voices_tiktok.ContainsKey(voice))
             {
                 return true;
             }
-            if (voices_streamelements.ContainsKey(voice))
+            if (_voices_streamelements.ContainsKey(voice))
             {
                 return true;
             }
@@ -152,11 +152,11 @@ namespace TwitchBot
         public Dictionary<string, string> GetVoices()
         {
             Dictionary<string, string> allVoices = new Dictionary<string, string>();
-            foreach(var voice in voices_tiktok)
+            foreach(var voice in _voices_tiktok)
             {
                 allVoices.Add(voice.Key, voice.Value);
             }
-            foreach (var voice in voices_streamelements)
+            foreach (var voice in _voices_streamelements)
             {
                 allVoices.Add(voice.Key, voice.Value);
             }
@@ -183,19 +183,19 @@ namespace TwitchBot
 
         public void Shutdown()
         {
-            lock (queuedSoundsMemoryLock)
+            lock (_queuedSoundsMemoryLock)
             {
-                shutdownInitiated = true;
+                _shutdownInitiated = true;
             }
         }
 
         public async void AddTextRequest(string txt, string voice)
         {
-            if (voices_tiktok.ContainsKey(voice))
+            if (_voices_tiktok.ContainsKey(voice))
             {
                 //TikTok api impl
                 {
-                    voice = voices_tiktok.First(k => k.Key == voice).Value;
+                    voice = _voices_tiktok.First(k => k.Key == voice).Value;
                     var text = txt;
 
                     var voiceText = new { voice = voice, text = text };
@@ -204,7 +204,7 @@ namespace TwitchBot
                     content.Headers.Remove("Content-Type");
                     content.Headers.Add("Content-Type", MediaTypeNames.Application.Json);
 
-                    var json = await httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
+                    var json = await _httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
                                                           content);
 
                     if (json.StatusCode != System.Net.HttpStatusCode.OK)
@@ -218,19 +218,19 @@ namespace TwitchBot
                     var binaryData = Convert.FromBase64String(deserializedResponse["data"].ToString());
 
                     MemoryStream soundStream = new MemoryStream(binaryData);
-                    Monitor.Enter(queuedSoundsMemoryLock);
-                    queuedSounds.Enqueue(soundStream);
-                    Monitor.Exit(queuedSoundsMemoryLock);
+                    Monitor.Enter(_queuedSoundsMemoryLock);
+                    _queuedSounds.Enqueue(soundStream);
+                    Monitor.Exit(_queuedSoundsMemoryLock);
                 }
             }
             //StreamElements impl
-            if (voices_streamelements.ContainsKey(voice))
+            if (_voices_streamelements.ContainsKey(voice))
             {
-                voice = voices_streamelements.First(k => k.Key == voice).Value;
+                voice = _voices_streamelements.First(k => k.Key == voice).Value;
 
                 var text = Uri.EscapeDataString(txt);
 
-                var json = await httpClient.GetAsync($"https://api.streamelements.com/kappa/v2/speech?voice={voice}&text={text}");
+                var json = await _httpClient.GetAsync($"https://api.streamelements.com/kappa/v2/speech?voice={voice}&text={text}");
 
                 if (json.StatusCode != System.Net.HttpStatusCode.OK)
                 {
@@ -240,9 +240,9 @@ namespace TwitchBot
 
                 var data = await json.Content.ReadAsByteArrayAsync();
                 MemoryStream soundStream = new MemoryStream(data.ToArray());
-                Monitor.Enter(queuedSoundsMemoryLock);
-                queuedSounds.Enqueue(soundStream);
-                Monitor.Exit(queuedSoundsMemoryLock);
+                Monitor.Enter(_queuedSoundsMemoryLock);
+                _queuedSounds.Enqueue(soundStream);
+                Monitor.Exit(_queuedSoundsMemoryLock);
             }
         }
 
