@@ -208,18 +208,6 @@ namespace TwitchBot
             }
         }
 
-        public void RemoveVoice(string voice)
-        {
-            //voices_streamelements.Remove(voice);
-            //using (StreamWriter sw = new StreamWriter("voices.txt"))
-            //{
-            //    foreach(var v in voices_streamelements)
-            //    {
-            //        sw.WriteLine(v.ToString());
-            //    }
-            //}
-        }
-
         public void Shutdown()
         {
             Monitor.Enter(_queuedSoundsMemoryLock);
@@ -284,7 +272,7 @@ namespace TwitchBot
                             content.Headers.Add("Content-Type", MediaTypeNames.Application.Json);
 
                             var json = await _httpClient.PostAsync("https://tiktok-tts.weilnet.workers.dev/api/generation",
-                                                                  content);
+                                                                   content);
 
                             if (json.StatusCode != System.Net.HttpStatusCode.OK)
                             {
@@ -315,7 +303,7 @@ namespace TwitchBot
                     }
                     else
                     {
-                        var text = Uri.EscapeDataString(txt);
+                        var text = Uri.EscapeDataString(sec);
 
                         var json = await _httpClient.GetAsync($"https://api.streamelements.com/kappa/v2/speech?voice={voice}&text={text}");
 
