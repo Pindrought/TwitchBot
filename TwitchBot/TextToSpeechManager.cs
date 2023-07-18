@@ -150,7 +150,6 @@ namespace TwitchBot
             _soundPlayingThread.Start();
         }
 
-
         public void SkipCurrentSound()
         {
             _skipCurrentSound.Value = true;
@@ -180,13 +179,33 @@ namespace TwitchBot
             {
                 allVoices.Add(voice.Key, voice.Value);
             }
-            //StreamWriter sw = new StreamWriter("allvoices.txt");
-            //foreach(var v in allVoices)
-            //{
-            //    sw.WriteLine(v.Key);
-            //}
-            //sw.Close();
             return allVoices;
+        }
+
+        public void DumpVoicesToFile(string fileName)
+        {
+            using (StreamWriter sw = new StreamWriter(fileName))
+            {
+                foreach (var v in _voices_tiktok)
+                {
+                    sw.WriteLine(v.Key);
+                }
+                foreach (var v in _voices_streamelements)
+                {
+                    sw.WriteLine(v.Key);
+                }
+            }
+        }
+
+        public void DumpSoundsToFile(string fileName)
+        {
+            using (StreamWriter sw = new StreamWriter(fileName))
+            {
+                foreach (var v in _soundEffects)
+                {
+                    sw.WriteLine(v.Key.Substring(1)); //When I load these in, I am prefixing them with a dash for simpler processing, but I want to remove the dash when writing out the sound names to a file
+                }
+            }
         }
 
         public void RemoveVoice(string voice)

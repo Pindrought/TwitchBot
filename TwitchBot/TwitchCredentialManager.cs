@@ -16,7 +16,7 @@ namespace TwitchBot
         public static string ChannelName = "";
         public static bool Initialize()
         {
-            if (File.Exists("config.ini") == false)
+            if (File.Exists("config.ini") == false) //If config.ini doesn't exist, we will generate it with the proper layout. User will need to fill this out obviously.
             {
                 using(StreamWriter sw = new StreamWriter("config.ini"))
                 {

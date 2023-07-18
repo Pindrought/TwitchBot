@@ -1,0 +1,103 @@
+english au - female
+english au - male
+english uk - male 1
+english uk - male 2
+english us - female (int. 1)
+english us - female (int. 2)
+english us - male 1
+english us - male 2
+english us - male 3
+english us - male 4
+narrator
+funny
+peaceful
+serious
+ghost face
+chewbacca
+c3po
+stitch
+stormtrooper
+rocket
+madame leota
+ghost host
+pirate
+french - male 1
+french - male 2
+spanish (spain) - male
+spanish mx - male
+portuguese br - female 1
+portuguese br - female 2
+portuguese br - female 3
+portuguese br - male
+german - female
+german - male
+indonesian - female
+japanese - female 1
+japanese - female 2
+japanese - female 3
+japanese - male
+korean - male 1
+korean - female
+korean - male 2
+singing alto
+singing tenor
+singing sunshine soon
+singing warmy breeze
+singing glorious
+singing it goes up
+singing dramatic
+aditi
+amy
+astrid
+bianca
+brian
+carla
+carmen
+celine
+chantal
+conchita
+cristiano
+dora
+emma
+enrique
+ewa
+filiz
+geraint
+giorgio
+gwyneth
+hans
+ines
+ivy
+jacek
+jan
+joanna
+joey
+justin
+karl
+kendra
+kimberly
+liv
+lotte
+mads
+maja
+marlene
+mathieu
+matthew
+maxim
+mia
+miguel
+mizuki
+naja
+nicole
+penelope
+raveena
+ricardo
+ruben
+russell
+salli
+seoyeon
+takumi
+tatyana
+vicki
+vitoria
+zhiyu
