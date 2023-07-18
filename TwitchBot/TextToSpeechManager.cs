@@ -54,6 +54,11 @@ namespace TwitchBot
                 }
             }
 
+            if (_voices_streamelements.Count == 0)
+            {
+                MessageBox.Show("Warning! the voices_streamelements.txt file is missing from the executable directory!");
+            }
+
             using (StreamReader sr = new StreamReader("voices_tiktok.txt"))
             {
                 string line = sr.ReadLine();
@@ -70,6 +75,11 @@ namespace TwitchBot
                     }
                     line = sr.ReadLine();
                 }
+            }
+
+            if (_voices_tiktok.Count == 0)
+            {
+                MessageBox.Show("Warning! the voices_tiktok.txt file is missing from the executable directory!");
             }
 
             var soundFiles = Directory.GetFiles("sounds");
