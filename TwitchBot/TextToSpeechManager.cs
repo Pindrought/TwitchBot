@@ -29,7 +29,9 @@ namespace TwitchBot
     internal class TextToSpeechManager
     {
         private readonly object _queuedSoundsMemoryLock = new object();
+
         private Queue<List<MemoryStream>> _queuedSounds = new Queue<List<MemoryStream>>();
+
         private HttpClient _httpClient = new HttpClient();
         private Thread _soundPlayingThread;
         private volatile bool _shutdownInitiated = false;
@@ -178,16 +180,19 @@ namespace TwitchBot
             return false;
         }
 
-        public Dictionary<string, string> GetVoices()
+        public List<string> GetVoices()
         {
-            Dictionary<string, string> allVoices = new Dictionary<string, string>();
+            List<string> allVoices = new List<string>();
+
             foreach(var voice in _voices_tiktok)
             {
-                allVoices.Add(voice.Key, voice.Value);
+                allVoices.Add(voice.Key);
             }
+            allVoices.Sort(); //Sort the tiktok ones they're in random order
+
             foreach (var voice in _voices_streamelements)
             {
-                allVoices.Add(voice.Key, voice.Value);
+                allVoices.Add(voice.Key);
             }
             return allVoices;
         }
@@ -336,3 +341,4 @@ namespace TwitchBot
         }
     }
 }
+

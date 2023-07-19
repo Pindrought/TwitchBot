@@ -45,7 +45,7 @@ namespace TwitchBot
 
             foreach(var voice in _textToSpeechManager.GetVoices())
             {
-                ComboBox_Voice.Items.Add(voice.Key);
+                ComboBox_Voice.Items.Add(voice);
             }
             if (ComboBox_Voice.Items.Count > 0) 
             {
