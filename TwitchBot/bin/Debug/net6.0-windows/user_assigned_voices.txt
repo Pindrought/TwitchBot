@@ -1,1 +1,1 @@
-PoopMaker=narrator
+PoopMaker=scream

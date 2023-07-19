@@ -93,13 +93,16 @@ namespace TwitchBot
             var cmd = e.Command.CommandText.ToLower();
             var msg = e.Command.ChatMessage.Message;
 
+            const string soundsURL = "https://pastebin.com/uH2uAeE1";
+            const string voicesURL = "https://pastebin.com/cctFPW2R";
+
             switch (cmd)
             {
                 case "sounds":
                     {
                         if (_timeSinceLastSoundsURLSent == null) //If first time sending the notification about how to use !sounds
                         {
-                            _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} For more information on the available sounds, see https://pastebin.com/uH2uAeE1");
+                            _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} For more information on the available sounds, see {soundsURL}");
                             _timeSinceLastSoundsURLSent = new Stopwatch(); //This will only ever happen one time
                             _timeSinceLastSoundsURLSent.Start();
                         }
@@ -107,7 +110,7 @@ namespace TwitchBot
                         {
                             if (_timeSinceLastSoundsURLSent.ElapsedMilliseconds > _minDurationBetweenSoundsURLNotification) //Make sure people aren't spamming it
                             {
-                                _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} For more information on the available sounds, see https://pastebin.com/uH2uAeE1");
+                                _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} For more information on the available sounds, see {soundsURL}");
                                 _timeSinceLastSoundsURLSent.Restart();
                             }
                         }
@@ -134,10 +137,10 @@ namespace TwitchBot
                         else //If invalid voice entered (or none)
                         {
                             //Whispers aren't working i'm not sure why and don't care enough to fix it, so i'll just send chat messages to everyone for now.
-                            //_client.SendWhisper(e.ChatMessage.Username, "Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                            //_client.SendWhisper(e.ChatMessage.Username, "Invalid voice specified. See URL for list of voices. {voicesURL}");
                             if (_timeSinceLastVoiceURLSent == null) //If first time sending the notification about how to use !voice
                             {
-                                _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. {voicesURL}");
                                 _timeSinceLastVoiceURLSent = new Stopwatch(); //This will only ever happen one time
                                 _timeSinceLastVoiceURLSent.Start();
                             }
@@ -145,7 +148,7 @@ namespace TwitchBot
                             {
                                 if (_timeSinceLastVoiceURLSent.ElapsedMilliseconds > _minDurationBetweenVoiceURLNotification)
                                 {
-                                    _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. https://pastebin.com/cZMn4SzT");
+                                    _client.SendMessage(TwitchCredentialManager.ChannelName, $"@{user} Invalid voice specified. See URL for list of voices. {voicesURL}");
                                     _timeSinceLastVoiceURLSent.Restart();
                                 }
                             }

@@ -8,19 +8,38 @@ english us - male 1
 english us - male 2
 english us - male 3
 english us - male 4
+bestie
+bae
+beauty guru
+butler
+cupid
+deadpool
+debutante
+author
 narrator
+empathetic
 funny
+lord cringe
+marty
 peaceful
 serious
-ghost face
+alfred
+scream
 chewbacca
 c3po
+santa
+santaeffect
 stitch
 stormtrooper
+varsity
 rocket
 madame leota
+optimus prime
 ghost host
 pirate
+trickster
+grandma
+wizard
 french - male 1
 french - male 2
 spanish (spain) - male
@@ -39,13 +58,22 @@ japanese - male
 korean - male 1
 korean - female
 korean - male 2
+singing opera
 singing alto
 singing tenor
 singing sunshine soon
 singing warmy breeze
 singing glorious
 singing it goes up
+singing chipmunk
 singing dramatic
+singing jingle
+singing classic
+singing cozy
+singing nye
+singing thanksgiving
+singing twinkle
+singing quirky
 aditi
 amy
 astrid
