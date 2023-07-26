@@ -18,6 +18,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Markup;
+using System.Windows.Shapes;
 using System.Xml.Schema;
 using TwitchLib.Api.Core.Enums;
 using TwitchLib.Api.Helix;
@@ -120,8 +121,18 @@ namespace TwitchBot
                                     _skipCurrentSound.Value = false;
                                 }
 
+                                //using (var fs = File.OpenWrite("test.mp3"))
+                                //{
+                                //    for (int i = 0; i < soundStreamList.Count; i++)
+                                //    {
+                                //        var soundStream = soundStreamList[i];
+                                //        fs.Write(soundStream.ToArray());
+                                //        fs.Flush();
+                                //    }
+                                //}
+
                                 for (int i = 0; i < soundStreamList.Count; i++)
-                                { 
+                                {
                                     var soundStream = soundStreamList[i];
                                     soundStream.Position = 0;
                                     using (var reader = new NAudio.Wave.Mp3FileReader(soundStream))
